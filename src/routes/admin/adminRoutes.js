@@ -3,7 +3,7 @@ import { requireAdmin } from '../../middleware/requireAdmin.js'
 import * as adminController from '../../controllers/admin/adminController.js'
 import User from '../../models/User.js'
 import { getFirebaseUserByEmail, setUserAdminClaimByEmail } from '../../config/firebaseAdmin.js'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
 const router = Router()
