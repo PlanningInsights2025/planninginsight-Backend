@@ -36,7 +36,10 @@ router.post('/login', async (req, res) => {
     console.log('✅ Admin role verified')
 
     // Verify password
+    console.log('🔑 Verifying password...')
     const isPasswordValid = await bcrypt.compare(password, user.password)
+    console.log('🔑 Password valid:', isPasswordValid)
+    
     if (!isPasswordValid) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' })
     }
@@ -72,8 +75,8 @@ router.post('/login', async (req, res) => {
       }
     })
   } catch (error) {
-    console.error('Admin login error:', error)
-    res.status(500).json({ success: false, message: 'Login failed' })
+    console.error('❌ Admin login error:', error.message, error.stack)
+    res.status(500).json({ success: false, message: 'Login failed', error: error.message })
   }
 })
 
