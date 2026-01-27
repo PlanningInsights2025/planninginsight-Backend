@@ -51,5 +51,6 @@ export async function connectDB(uri) {
 	} catch (e) {
 		console.error('❌ MongoDB connection error:', e.message)
 		isConnected = false
+		throw e // Re-throw error to let caller handle it
+	}
 }
-
