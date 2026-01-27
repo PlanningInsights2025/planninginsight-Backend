@@ -29,17 +29,6 @@ const app = express()
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
 
-// Ensure MongoDB connection for each request (critical for serverless)
-app.use(async (req, res, next) => {
-  try {
-    await connectDB(process.env.MONGODB_URI)
-    next()
-  } catch (error) {
-    console.error('Database connection middleware error:', error)
-    res.status(500).json({ success: false, message: 'Database connection failed' })
-  }
-})
-
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 
