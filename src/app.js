@@ -18,6 +18,7 @@ import appealRoutes from './routes/forum/appealRoutes.js'
 import editorRoutes from './routes/editor/editorRoutes.js'
 import chiefEditorRoutes from './routes/chiefEditor/chiefEditorRoutes.js'
 import roleRequestRoutes from './routes/user/roleRequestRoutes.js'
+import { ensureDBConnection } from './middleware/database.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -34,7 +35,9 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 app.get('/test', (req, res) => res.send('Server is working!'))
-// Database connection (handled in server.js, removed from here to prevent double connection)
+
+// Database connection middleware for serverless - ensures DB is connected before any route
+app.use('/api', ensureDBConnection)
 
 // Order matters: mount auth (unprotected) before protected admin routes
 app.use('/api/auth', authRoutes)
