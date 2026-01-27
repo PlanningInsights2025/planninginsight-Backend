@@ -36,23 +36,20 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 app.get('/test', (req, res) => res.send('Server is working!'))
 
-// Database connection middleware for serverless - ensures DB is connected before any route
-app.use('/api', ensureDBConnection)
-
 // Order matters: mount auth (unprotected) before protected admin routes
-app.use('/api/auth', authRoutes)
-app.use('/api/auth', linkedinAuthRoutes)
-app.use('/api/admin', adminAuthRoutes) // /api/admin/login (unprotected)
-app.use('/api/admin', adminRoutes) // protected (requireAdmin)
-app.use('/api/admin/forum', forumAdminRoutes) // forum admin routes
-app.use('/api/publishing', publishingRoutes) // public publishing routes
-app.use('/api/research-papers', researchPaperRoutes) // research papers routes
-app.use('/api/newsroom/articles', articleRoutes) // newsroom article routes
-app.use('/api/newsroom/plagiarism', plagiarismRoutes) // plagiarism check routes
-app.use('/api/forum', forumRoutes) // forum routes
-app.use('/api/forum/appeal', appealRoutes) // appeal routes
-app.use('/api/editor', editorRoutes) // editor routes for manuscript and research paper review
-app.use('/api/chief-editor', chiefEditorRoutes) // chief editor routes for assignment management
-app.use('/api/user', roleRequestRoutes) // user role request routes
+app.use('/api/auth', ensureDBConnection, authRoutes)
+app.use('/api/auth', ensureDBConnection, linkedinAuthRoutes)
+app.use('/api/admin', ensureDBConnection, adminAuthRoutes) // /api/admin/login (unprotected)
+app.use('/api/admin', ensureDBConnection, adminRoutes) // protected (requireAdmin)
+app.use('/api/admin/forum', ensureDBConnection, forumAdminRoutes) // forum admin routes
+app.use('/api/publishing', ensureDBConnection, publishingRoutes) // public publishing routes
+app.use('/api/research-papers', ensureDBConnection, researchPaperRoutes) // research papers routes
+app.use('/api/newsroom/articles', ensureDBConnection, articleRoutes) // newsroom article routes
+app.use('/api/newsroom/plagiarism', ensureDBConnection, plagiarismRoutes) // plagiarism check routes
+app.use('/api/forum', ensureDBConnection, forumRoutes) // forum routes
+app.use('/api/forum/appeal', ensureDBConnection, appealRoutes) // appeal routes
+app.use('/api/editor', ensureDBConnection, editorRoutes) // editor routes for manuscript and research paper review
+app.use('/api/chief-editor', ensureDBConnection, chiefEditorRoutes) // chief editor routes for assignment management
+app.use('/api/user', ensureDBConnection, roleRequestRoutes) // user role request routes
 
 export default app
