@@ -27,11 +27,29 @@ dotenv.config()
 const app = express()
 
 // CORS configuration - MUST be BEFORE all routes
+const allowedOrigins = [
+  'https://astounding-arithmetic-ef6af9.netlify.app',
+  'http://localhost:5173',
+  'http://localhost:3000'
+]
+
 app.use(cors({
-  origin: "https://astounding-arithmetic-ef6af9.netlify.app",
+  origin: function (origin, callback) {
+    // Allow requests with no origin (Postman, etc.)
+    if (!origin) return callback(null, true)
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      console.log('❌ Origin not allowed:', origin)
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }))
 
 // Handle preflight OPTIONS requests for all routes
