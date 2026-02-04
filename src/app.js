@@ -26,7 +26,20 @@ dotenv.config()
 
 const app = express()
 
-app.use(cors({ origin: true, credentials: true }))
+// CORS configuration for production
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://astounding-arithmetic-ef6af9.netlify.app',
+    process.env.FRONTEND_URL
+  ].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}
+
+app.use(cors(corsOptions))
 app.use(express.json())
 
 // Serve uploaded files
