@@ -26,6 +26,21 @@ dotenv.config()
 
 const app = express()
 
+// Manual CORS headers for Vercel - BEFORE cors middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*')
+  res.header('Access-Control-Allow-Credentials', 'true')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+  
+  next()
+})
+
 // CORS configuration - Allow all origins for now to test
 app.use(cors({
   origin: true,
