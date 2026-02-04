@@ -47,6 +47,9 @@ const startServer = async () => {
 
 startServer()
 
+// Export app for Vercel serverless
+export default app
+
 // Global error handlers
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error)
