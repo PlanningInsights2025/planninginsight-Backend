@@ -18,6 +18,7 @@ import appealRoutes from './routes/forum/appealRoutes.js'
 import editorRoutes from './routes/editor/editorRoutes.js'
 import chiefEditorRoutes from './routes/chiefEditor/chiefEditorRoutes.js'
 import roleRequestRoutes from './routes/user/roleRequestRoutes.js'
+import userStatsRoutes from './routes/user/userStatsRoutes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -131,5 +132,6 @@ app.use('/api/forum/appeal', appealRoutes) // appeal routes
 app.use('/api/editor', editorRoutes) // editor routes for manuscript and research paper review
 app.use('/api/chief-editor', chiefEditorRoutes) // chief editor routes for assignment management
 app.use('/api/user', roleRequestRoutes) // user role request routes
+app.use('/api/user', userStatsRoutes) // user stats routes
 
 export default app
