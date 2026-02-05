@@ -28,7 +28,20 @@ const app = express()
 
 // Manual CORS headers for Vercel - BEFORE cors middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*')
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://astounding-arithmetic-ef6af9.netlify.app',
+    'https://planninginsights.com'
+  ]
+  
+  const origin = req.headers.origin
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.header('Access-Control-Allow-Origin', origin || '*')
+  } else {
+    res.header('Access-Control-Allow-Origin', '*')
+  }
+  
   res.header('Access-Control-Allow-Credentials', 'true')
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
@@ -43,7 +56,24 @@ app.use((req, res, next) => {
 
 // CORS configuration - Allow all origins for now to test
 app.use(cors({
-  origin: true,
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://astounding-arithmetic-ef6af9.netlify.app',
+      'https://planninginsights.com'
+    ]
+    
+    // Allow requests with no origin (like mobile apps, curl, postman)
+    if (!origin) return callback(null, true)
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true)
+    } else {
+      // For development, allow all origins
+      callback(null, true)
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
