@@ -26,6 +26,29 @@ dotenv.config()
 
 const app = express()
 
+// CRITICAL: Handle OPTIONS preflight FIRST, before any other middleware
+app.options('*', (req, res) => {
+  const origin = req.headers.origin
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://astounding-arithmetic-ef6af9.netlify.app',
+    'https://planninginsights.com'
+  ]
+  
+  if (origin && (allowedOrigins.includes(origin) || origin.includes('netlify.app'))) {
+    res.header('Access-Control-Allow-Origin', origin)
+    res.header('Access-Control-Allow-Credentials', 'true')
+  } else if (origin) {
+    res.header('Access-Control-Allow-Origin', origin)
+    res.header('Access-Control-Allow-Credentials', 'true')
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
+  res.status(200).end()
+})
+
 // Manual CORS headers for Vercel - BEFORE cors middleware
 app.use((req, res, next) => {
   const allowedOrigins = [
@@ -50,11 +73,6 @@ app.use((req, res, next) => {
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
-  
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
   
   next()
 })
