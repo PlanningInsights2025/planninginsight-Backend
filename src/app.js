@@ -36,13 +36,18 @@ app.use((req, res, next) => {
   ]
   
   const origin = req.headers.origin
-  if (allowedOrigins.includes(origin) || !origin) {
-    res.header('Access-Control-Allow-Origin', origin || '*')
-  } else {
-    res.header('Access-Control-Allow-Origin', '*')
+  
+  // IMPORTANT: When credentials are included, we MUST specify exact origin, not '*'
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin)
+    res.header('Access-Control-Allow-Credentials', 'true')
+  } else if (origin) {
+    // For development, still allow the origin but log it
+    res.header('Access-Control-Allow-Origin', origin)
+    res.header('Access-Control-Allow-Credentials', 'true')
+    console.log('⚠️ Request from unlisted origin:', origin)
   }
   
-  res.header('Access-Control-Allow-Credentials', 'true')
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
   
