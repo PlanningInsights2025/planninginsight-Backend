@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import User from '../models/User.js';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/planning-insights';
 
