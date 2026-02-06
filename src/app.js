@@ -32,6 +32,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://astounding-arithmetic-ef6af9.netlify.app',
+  'https://theplanninginsights.com',
   'https://planninginsights.com'
 ]
 
