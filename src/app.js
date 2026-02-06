@@ -27,71 +27,21 @@ dotenv.config()
 
 const app = express()
 
-// CRITICAL: Handle OPTIONS preflight FIRST, before any other middleware
-app.options('*', (req, res) => {
-  const origin = req.headers.origin
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'https://astounding-arithmetic-ef6af9.netlify.app',
-    'https://planninginsights.com'
-  ]
-  
-  if (origin && (allowedOrigins.includes(origin) || origin.includes('netlify.app'))) {
-    res.header('Access-Control-Allow-Origin', origin)
-    res.header('Access-Control-Allow-Credentials', 'true')
-  } else if (origin) {
-    res.header('Access-Control-Allow-Origin', origin)
-    res.header('Access-Control-Allow-Credentials', 'true')
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
-  res.status(200).end()
-})
+// CORS configuration for Vercel deployment
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://astounding-arithmetic-ef6af9.netlify.app',
+  'https://planninginsights.com'
+]
 
-// Manual CORS headers for Vercel - BEFORE cors middleware
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'https://astounding-arithmetic-ef6af9.netlify.app',
-    'https://planninginsights.com'
-  ]
-  
-  const origin = req.headers.origin
-  
-  // IMPORTANT: When credentials are included, we MUST specify exact origin, not '*'
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin)
-    res.header('Access-Control-Allow-Credentials', 'true')
-  } else if (origin) {
-    // For development, still allow the origin but log it
-    res.header('Access-Control-Allow-Origin', origin)
-    res.header('Access-Control-Allow-Credentials', 'true')
-    console.log('⚠️ Request from unlisted origin:', origin)
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
-  
-  next()
-})
-
-// CORS configuration - Allow all origins for now to test
 app.use(cors({
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://astounding-arithmetic-ef6af9.netlify.app',
-      'https://planninginsights.com'
-    ]
-    
-    // Allow requests with no origin (like mobile apps, curl, postman)
+    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true)
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Allow if origin is in the list or is a netlify.app domain
+    if (allowedOrigins.includes(origin) || origin.includes('netlify.app')) {
       callback(null, true)
     } else {
       // For development, allow all origins
@@ -104,9 +54,6 @@ app.use(cors({
   exposedHeaders: ["Content-Range", "X-Content-Range"],
   maxAge: 600
 }))
-
-// Explicitly handle OPTIONS for all routes
-app.options("*", cors())
 
 app.use(express.json())
 
