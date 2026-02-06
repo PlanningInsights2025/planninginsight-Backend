@@ -27,29 +27,9 @@ dotenv.config()
 
 const app = express()
 
-// CORS configuration for Vercel deployment
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://astounding-arithmetic-ef6af9.netlify.app',
-  'https://theplanninginsights.com',
-  'https://www.theplanninginsights.com',
-  'https://planninginsights.com'
-]
-
+// CORS configuration - Allow all origins for now to fix deployment issue
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true)
-    
-    // Allow if origin is in the list or is a netlify.app domain
-    if (allowedOrigins.includes(origin) || origin.includes('netlify.app')) {
-      callback(null, true)
-    } else {
-      // For development, allow all origins
-      callback(null, true)
-    }
-  },
+  origin: true,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
