@@ -4,8 +4,9 @@ import { connectDB } from '../src/config/database.js'
 let isConnected = false
 
 export default async (req, res) => {
-  // Set CORS headers for all requests - allow all origins
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  // Set CORS headers - return the request origin to support credentials
+  const origin = req.headers.origin || '*'
+  res.setHeader('Access-Control-Allow-Origin', origin)
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT')
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization')

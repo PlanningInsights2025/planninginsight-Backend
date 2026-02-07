@@ -27,7 +27,7 @@ async function fixAdmin() {
     await mongoose.connect(MONGODB_URI)
     console.log('✅ Connected to MongoDB\n')
 
-    const adminEmail = 'admin@planning-insights.com'
+    const adminEmail = 'admin@theplanninginsights.com'
     const adminPassword = 'Admin@123'
 
     console.log('Looking for admin user:', adminEmail)
