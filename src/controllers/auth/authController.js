@@ -757,73 +757,68 @@ export const resetPassword = async (req, res) => {
 }
 
 /**
- * Google Sign-In Handler
- * Creates or updates user from Google OAuth and returns JWT token
+ * Google Sign-In Handler (Firebase-free)
+ * Accepts a Google OAuth access_token, verifies it via Google's userinfo
+ * endpoint, then creates/updates the user and returns a JWT.
  */
 export const googleLogin = async (req, res) => {
   try {
-    console.log('🔵 Google login request received:', req.body);
-    const { uid, email, displayName, photoURL } = req.body
+    const { access_token } = req.body
 
-    if (!uid || !email) {
-      console.log('❌ Missing required fields:', { uid: !!uid, email: !!email });
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Firebase UID and email are required' 
-      })
+    if (!access_token) {
+      return res.status(400).json({ success: false, message: 'Google access_token is required' })
     }
 
-    console.log('✅ Valid request, finding/creating user...');
+    // Verify token by calling Google's userinfo endpoint
+    const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
+      headers: { Authorization: `Bearer ${access_token}` }
+    })
+
+    if (!googleRes.ok) {
+      return res.status(401).json({ success: false, message: 'Invalid Google token' })
+    }
+
+    const googleUser = await googleRes.json()
+    const { sub: googleId, email, given_name, family_name, picture } = googleUser
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Could not retrieve email from Google' })
+    }
+
     // Find or create user
     let user = await User.findOne({ email: email.toLowerCase().trim() })
-    
+
     if (!user) {
-      // Create new user from Google sign-in
-      console.log('📝 Creating new user from Google sign-in...');
-      const [firstName, ...lastNameParts] = (displayName || email).split(' ')
       user = new User({
         email: email.toLowerCase().trim(),
         emailVerified: true,
         authProvider: 'google',
-        firebaseUid: uid,
+        googleId,
         profile: {
-          firstName: firstName || email.split('@')[0],
-          lastName: lastNameParts.join(' ') || '',
-          avatar: photoURL || null
+          firstName: given_name || email.split('@')[0],
+          lastName: family_name || '',
+          avatar: picture || null
         },
         status: 'active',
         lastLogin: new Date()
       })
       await user.save()
-      console.log(`✅ New user created from Google: ${email}`)
+      console.log(`✅ New user created via Google OAuth: ${email}`)
     } else {
-      // Update existing user
-      console.log('✅ Existing user found, updating...');
       user.lastLogin = new Date()
       user.emailVerified = true
-      if (!user.firebaseUid) {
-        user.firebaseUid = uid
-      }
-      if (photoURL && !user.profile.avatar) {
-        user.profile.avatar = photoURL
-      }
+      if (!user.googleId) user.googleId = googleId
+      if (picture && !user.profile?.avatar) user.profile.avatar = picture
       await user.save()
-      console.log(`✅ Existing user logged in with Google: ${email}`)
+      console.log(`✅ Existing user signed in via Google OAuth: ${email}`)
     }
 
-    // Generate JWT token
-    console.log('🔐 Generating JWT token...');
     const token = jwt.sign(
-      { 
-        userId: user._id, 
-        email: user.email,
-        role: user.role 
-      },
+      { userId: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     )
 
-    console.log('✅ JWT token generated successfully');
     res.json({
       success: true,
       message: 'Google sign-in successful',
@@ -839,11 +834,6 @@ export const googleLogin = async (req, res) => {
     })
   } catch (error) {
     console.error('❌ Google login error:', error)
-    console.error('❌ Error stack:', error.stack)
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to process Google sign-in',
-      error: error.message 
-    })
+    res.status(500).json({ success: false, message: 'Failed to process Google sign-in', error: error.message })
   }
 }
