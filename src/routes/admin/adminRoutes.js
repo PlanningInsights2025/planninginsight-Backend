@@ -83,6 +83,8 @@ router.use(requireAdmin)
 // ==================== DASHBOARD ====================
 router.get('/dashboard-stats', adminController.getDashboardStats)
 router.get('/analytics', adminController.getAnalytics)
+router.get('/analytics/realtime', adminController.getRealtimeAnalytics)
+router.get('/analytics/overview', adminController.getWebsiteOverviewAnalytics)
 
 // ==================== USER MANAGEMENT ====================
 router.get('/users', adminController.getAllUsers)

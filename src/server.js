@@ -11,22 +11,15 @@ const PORT = process.env.PORT || 3000
 // Connect to MongoDB before starting the server
 const startServer = async () => {
   try {
-    // Connect to MongoDB
-    await connectDB(process.env.MONGODB_URI)
-    
-    // Create HTTP server
+    // Create HTTP server and start listening immediately
     const server = createServer(app)
-    
-    // Initialize Socket.IO
     const io = initializeSocket(server)
-    app.set('io', io) // Make io available in routes
+    app.set('io', io)
     console.log('✅ Socket.IO initialized for real-time updates')
-    
-    // Start Express server
+
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ API server listening on http://localhost:${PORT}`)
       console.log(`✅ Server bound to all network interfaces`)
-      console.log(`✅ MongoDB connected to: ${process.env.MONGODB_URI}`)
       console.log(`✅ Socket.IO ready for real-time connections`)
     })
 
@@ -39,6 +32,27 @@ const startServer = async () => {
         process.exit(1);
       }
     });
+
+    // Connect to MongoDB with retry (non-blocking)
+    const connectWithRetry = async (attempt = 1, maxAttempts = 5) => {
+      try {
+        await connectDB(process.env.MONGODB_URI)
+        console.log('✅ MongoDB connected successfully')
+      } catch (error) {
+        console.error(`❌ MongoDB connection error (attempt ${attempt}/${maxAttempts}):`, error.message)
+        if (attempt < maxAttempts) {
+          const delay = Math.min(5000 * attempt, 30000)
+          console.log(`🔄 Retrying in ${delay / 1000}s...`)
+          setTimeout(() => connectWithRetry(attempt + 1, maxAttempts), delay)
+        } else {
+          console.error('❌ MongoDB connection failed after all retries.')
+          console.error('   ⚠ Please whitelist your IP in MongoDB Atlas Network Access.')
+          console.error(`   ⚠ Current server IP may need to be added to Atlas allowlist.`)
+        }
+      }
+    }
+    connectWithRetry()
+
   } catch (error) {
     console.error('❌ Failed to start server:', error.message)
     process.exit(1)

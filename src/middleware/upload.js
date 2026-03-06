@@ -76,10 +76,25 @@ const imageFilter = (req, file, cb) => {
 export const uploadArticleImage = multer({
   storage: imageStorage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit for images
+    fileSize: 10 * 1024 * 1024 // 10MB limit (covers both images and documents)
   },
-  fileFilter: imageFilter
-}).single('featuredImage')
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'featuredImage') {
+      imageFilter(req, file, cb);
+    } else if (file.fieldname === 'documents') {
+      // Accept PDF, DOC, DOCX for article documents
+      const allowedDocs = /pdf|doc|docx/;
+      const extOk = allowedDocs.test(path.extname(file.originalname).toLowerCase());
+      if (extOk) cb(null, true);
+      else cb(new Error('Only PDF, DOC, and DOCX files are allowed as documents'));
+    } else {
+      cb(null, true);
+    }
+  }
+}).fields([
+  { name: 'featuredImage', maxCount: 1 },
+  { name: 'documents', maxCount: 10 }
+]);
 
 // Middleware wrapper with error handling for manuscripts
 export const handleUpload = (req, res, next) => {

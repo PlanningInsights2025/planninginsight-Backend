@@ -13,6 +13,11 @@ import Question from '../../models/Question.js'
 import RoleRequest from '../../models/RoleRequest.js'
 import { sendMail } from '../../config/email.js'
 import { sendEmail } from '../../services/email/emailService.js'
+import {
+  getCombinedAnalytics,
+  getOverviewWebsiteAnalytics,
+  getRealtimeWebsiteAnalytics
+} from '../../services/analytics/googleAnalyticsService.js'
 
 /**
  * Admin Controller
@@ -70,11 +75,15 @@ export const getDashboardStats = async (req, res) => {
  */
 export const getAnalytics = async (req, res) => {
   try {
-    const analytics = {
-      userGrowth: [],
-      contentActivity: [],
-      engagement: {}
-    }
+    const { period = '7d', stream = 'public' } = req.query
+    const streamId = stream === 'admin'
+      ? process.env.GA_ADMIN_STREAM_ID
+      : process.env.GA_PUBLIC_STREAM_ID
+
+    const analytics = await getCombinedAnalytics({
+      period,
+      streamId
+    })
 
     res.json({
       success: true,
@@ -83,6 +92,50 @@ export const getAnalytics = async (req, res) => {
   } catch (error) {
     console.error('Error fetching analytics:', error)
     res.status(500).json({ success: false, message: 'Failed to fetch analytics' })
+  }
+}
+
+export const getRealtimeAnalytics = async (req, res) => {
+  try {
+    const { stream = 'public' } = req.query
+    const streamId = stream === 'admin'
+      ? process.env.GA_ADMIN_STREAM_ID
+      : process.env.GA_PUBLIC_STREAM_ID
+
+    const realtime = await getRealtimeWebsiteAnalytics({ streamId })
+
+    res.json({
+      success: true,
+      realtime,
+      stream
+    })
+  } catch (error) {
+    console.error('Error fetching realtime analytics:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch realtime analytics' })
+  }
+}
+
+export const getWebsiteOverviewAnalytics = async (req, res) => {
+  try {
+    const { period = '7d', stream = 'public' } = req.query
+    const streamId = stream === 'admin'
+      ? process.env.GA_ADMIN_STREAM_ID
+      : process.env.GA_PUBLIC_STREAM_ID
+
+    const overview = await getOverviewWebsiteAnalytics({
+      period,
+      streamId
+    })
+
+    res.json({
+      success: true,
+      overview,
+      period,
+      stream
+    })
+  } catch (error) {
+    console.error('Error fetching overview analytics:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch overview analytics' })
   }
 }
 

@@ -10,7 +10,7 @@ export async function connectDB(uri) {
 		// Set up connection options
 		const options = {
 			dbName: 'planning_insights',
-			serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds
+			serverSelectionTimeoutMS: 15000, // 15 seconds
 			socketTimeoutMS: 45000,
 		}
 		

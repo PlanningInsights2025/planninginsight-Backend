@@ -16,6 +16,8 @@ import {
   dislikeArticle,
   addComment,
   deleteComment,
+  addReply,
+  deleteReply,
   flagArticle,
   incrementShareCount,
   getArticleStats
@@ -64,6 +66,12 @@ router.post('/:id/comments', authenticate, addComment)
 
 // Delete comment
 router.delete('/:id/comments/:commentId', authenticate, deleteComment)
+
+// Add reply to a comment
+router.post('/:id/comments/:commentId/replies', authenticate, addReply)
+
+// Delete a reply
+router.delete('/:id/comments/:commentId/replies/:replyId', authenticate, deleteReply)
 
 // Flag article
 router.post('/:id/flag', authenticate, flagArticle)

@@ -14,7 +14,7 @@ let transporter = null;
 // Only create transporter if credentials are provided
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
   try {
-    transporter = nodemailer.createTransporter({
+    transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false, // true for 465, false for other ports

@@ -173,6 +173,8 @@ export const getArticleById = async (req, res) => {
       .populate('author', 'email profile')
       .populate('coAuthors.user', 'email profile')
       .populate('reviewedBy', 'email profile')
+      .populate('comments.user', 'email profile')
+      .populate('comments.replies.user', 'email profile')
 
     if (!article) {
       return res.status(404).json({
@@ -664,6 +666,83 @@ export const deleteComment = async (req, res) => {
   } catch (error) {
     console.error('Delete comment error:', error)
     res.status(500).json({ success: false, message: 'Failed to delete comment' })
+  }
+}
+
+/**
+ * Add reply to a comment
+ */
+export const addReply = async (req, res) => {
+  try {
+    const { id, commentId } = req.params
+    const { content } = req.body
+    const userId = req.user.id || req.user.userId
+
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'Reply content is required' })
+    }
+
+    const article = await Article.findById(id)
+    if (!article) {
+      return res.status(404).json({ success: false, message: 'Article not found' })
+    }
+
+    const comment = article.comments.id(commentId)
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' })
+    }
+
+    const reply = { user: userId, content, createdAt: new Date() }
+    comment.replies.push(reply)
+    await article.save()
+    await article.populate('comments.replies.user', 'email profile')
+
+    const savedReply = comment.replies[comment.replies.length - 1]
+    emitToArticle(id, 'article:reply_new', { commentId, reply: savedReply })
+
+    res.status(201).json({ success: true, data: { reply: savedReply } })
+  } catch (error) {
+    console.error('Add reply error:', error)
+    res.status(500).json({ success: false, message: 'Failed to add reply' })
+  }
+}
+
+/**
+ * Delete a reply
+ */
+export const deleteReply = async (req, res) => {
+  try {
+    const { id, commentId, replyId } = req.params
+    const userId = req.user.id || req.user.userId
+
+    const article = await Article.findById(id)
+    if (!article) {
+      return res.status(404).json({ success: false, message: 'Article not found' })
+    }
+
+    const comment = article.comments.id(commentId)
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' })
+    }
+
+    const reply = comment.replies.id(replyId)
+    if (!reply) {
+      return res.status(404).json({ success: false, message: 'Reply not found' })
+    }
+
+    if (reply.user.toString() !== userId && article.author.toString() !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this reply' })
+    }
+
+    comment.replies = comment.replies.filter(r => r._id.toString() !== replyId)
+    await article.save()
+
+    emitToArticle(id, 'article:reply_deleted', { commentId, replyId })
+
+    res.json({ success: true, message: 'Reply deleted successfully' })
+  } catch (error) {
+    console.error('Delete reply error:', error)
+    res.status(500).json({ success: false, message: 'Failed to delete reply' })
   }
 }
 
