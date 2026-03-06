@@ -1,6 +1,6 @@
 import Article from '../../models/Article.js'
 import User from '../../models/User.js'
-import { getIO } from '../../config/socket.js'
+import { getIO, emitToArticle } from '../../config/socket.js'
 
 /**
  * Create new article
@@ -515,14 +515,19 @@ export const likeArticle = async (req, res) => {
     article.dislikesCount = article.dislikes.length
     await article.save()
 
+    const statsPayload = {
+      likesCount: article.likesCount,
+      dislikesCount: article.dislikesCount,
+      userLiked: article.likes.some(u => u.toString() === userId),
+      userDisliked: article.dislikes.some(u => u.toString() === userId)
+    }
+
+    // Broadcast real-time stats update to all viewers of this article
+    emitToArticle(id, 'article:stats', statsPayload)
+
     res.json({
       success: true,
-      data: {
-        likesCount: article.likesCount,
-        dislikesCount: article.dislikesCount,
-        userLiked: article.likes.some(u => u.toString() === userId),
-        userDisliked: article.dislikes.some(u => u.toString() === userId)
-      }
+      data: statsPayload
     })
   } catch (error) {
     console.error('Like article error:', error)
@@ -558,14 +563,19 @@ export const dislikeArticle = async (req, res) => {
     article.dislikesCount = article.dislikes.length
     await article.save()
 
+    const statsPayload = {
+      likesCount: article.likesCount,
+      dislikesCount: article.dislikesCount,
+      userLiked: article.likes.some(u => u.toString() === userId),
+      userDisliked: article.dislikes.some(u => u.toString() === userId)
+    }
+
+    // Broadcast real-time stats update to all viewers of this article
+    emitToArticle(id, 'article:stats', statsPayload)
+
     res.json({
       success: true,
-      data: {
-        likesCount: article.likesCount,
-        dislikesCount: article.dislikesCount,
-        userLiked: article.likes.some(u => u.toString() === userId),
-        userDisliked: article.dislikes.some(u => u.toString() === userId)
-      }
+      data: statsPayload
     })
   } catch (error) {
     console.error('Dislike article error:', error)
@@ -606,9 +616,14 @@ export const addComment = async (req, res) => {
     await article.save()
     await article.populate('comments.user', 'profile email')
 
+    const newComment = article.comments[article.comments.length - 1]
+
+    // Broadcast new comment to all viewers of this article
+    emitToArticle(id, 'article:comment_new', { comment: newComment })
+
     res.status(201).json({
       success: true,
-      data: { comment: article.comments[article.comments.length - 1] }
+      data: { comment: newComment }
     })
   } catch (error) {
     console.error('Add comment error:', error)
@@ -641,6 +656,9 @@ export const deleteComment = async (req, res) => {
 
     article.comments = article.comments.filter(c => c._id.toString() !== commentId)
     await article.save()
+
+    // Broadcast comment deletion to all viewers of this article
+    emitToArticle(id, 'article:comment_deleted', { commentId })
 
     res.json({ success: true, message: 'Comment deleted successfully' })
   } catch (error) {

@@ -17,70 +17,86 @@ export const initializeSocket = (server) => {
     transports: ['websocket', 'polling']
   });
 
-  // Authentication middleware
+  // Authentication middleware — optional (guests allowed for read-only rooms)
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
-      
+
       if (!token) {
-        return next(new Error('Authentication required'));
+        // Allow unauthenticated connections (e.g., article read-only rooms)
+        socket.user = null;
+        return next();
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.userId).select('-password');
-      
-      if (!user) {
-        return next(new Error('User not found'));
-      }
 
-      socket.user = user;
+      socket.user = user || null;
       next();
     } catch (error) {
-      console.error('Socket authentication error:', error.message);
-      next(new Error('Authentication failed'));
+      // Invalid token — allow as guest
+      socket.user = null;
+      next();
     }
   });
 
   // Connection handler
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.user.name} (${socket.user._id})`);
+    const userName = socket.user?.name || 'Guest';
+    const userId = socket.user?._id;
+    console.log(`Socket connected: ${userName} (${userId || 'unauthenticated'})`);
 
-    // Join user's personal room for notifications
-    socket.join(`user:${socket.user._id}`);
+    // Join user's personal room for notifications (authenticated only)
+    if (userId) {
+      socket.join(`user:${userId}`);
 
-    // Join admin rooms if user is admin or masterAdmin
-    if (socket.user.role === 'admin' || socket.user.role === 'masterAdmin') {
-      socket.join('admin:dashboard');
-      socket.join('admin:moderation');
-      console.log(`✅ Admin ${socket.user.name} joined admin rooms`);
+      // Join admin rooms if user is admin or masterAdmin
+      if (socket.user.role === 'admin' || socket.user.role === 'masterAdmin') {
+        socket.join('admin:dashboard');
+        socket.join('admin:moderation');
+        console.log(`✅ Admin ${userName} joined admin rooms`);
+      }
     }
+
+    // ─── Article rooms (available to all, including guests) ───────────────
+
+    socket.on('article:join', (articleId) => {
+      if (articleId) {
+        socket.join(`article:${articleId}`);
+      }
+    });
+
+    socket.on('article:leave', (articleId) => {
+      if (articleId) {
+        socket.leave(`article:${articleId}`);
+      }
+    });
+
+    // ─── Forum rooms ──────────────────────────────────────────────────────
 
     // Join forum room
     socket.on('forum:join', (forumId) => {
       socket.join(`forum:${forumId}`);
-      console.log(`User ${socket.user.name} joined forum: ${forumId}`);
     });
 
     // Leave forum room
     socket.on('forum:leave', (forumId) => {
       socket.leave(`forum:${forumId}`);
-      console.log(`User ${socket.user.name} left forum: ${forumId}`);
     });
 
     // Join thread room
     socket.on('thread:join', (threadId) => {
       socket.join(`thread:${threadId}`);
-      console.log(`User ${socket.user.name} joined thread: ${threadId}`);
     });
 
     // Leave thread room
     socket.on('thread:leave', (threadId) => {
       socket.leave(`thread:${threadId}`);
-      console.log(`User ${socket.user.name} left thread: ${threadId}`);
     });
 
     // Typing indicator for threads
     socket.on('thread:typing', ({ threadId, isTyping }) => {
+      if (!socket.user) return;
       socket.to(`thread:${threadId}`).emit('thread:user_typing', {
         userId: socket.user._id,
         userName: socket.user.name,
@@ -90,7 +106,7 @@ export const initializeSocket = (server) => {
 
     // Disconnect handler
     socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.user.name}`);
+      console.log(`Socket disconnected: ${userName}`);
     });
 
     // Error handler
@@ -111,6 +127,15 @@ export const getIO = () => {
     throw new Error('Socket.io not initialized');
   }
   return io;
+};
+
+/**
+ * Emit event to article room
+ */
+export const emitToArticle = (articleId, event, data) => {
+  if (io) {
+    io.to(`article:${articleId}`).emit(event, data);
+  }
 };
 
 /**
