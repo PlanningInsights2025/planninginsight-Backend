@@ -1,5 +1,6 @@
 import Article from '../../models/Article.js'
 import User from '../../models/User.js'
+import { getIO } from '../../config/socket.js'
 
 /**
  * Create new article
@@ -24,7 +25,7 @@ export const createArticle = async (req, res) => {
     console.log('Category:', category)
     console.log('isPublished:', isPublished)
     console.log('User:', req.user)
-    console.log('File:', req.file)
+    console.log('Files:', req.files)
 
     // Parse JSON strings if they come from FormData
     const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags
@@ -62,14 +63,20 @@ export const createArticle = async (req, res) => {
       plagiarismReport: parsedPlagiarismReport || null,
       allowComments: allowComments !== 'false',
       coAuthors: transformedCoAuthors,
-      featuredImage: req.file ? req.file.path : null
+      featuredImage: req.files?.featuredImage?.[0]?.path || null,
+      uploadedFiles: (req.files?.documents || []).map(f => ({
+        filename: f.originalname,
+        url: f.path,
+        type: f.mimetype,
+        size: f.size
+      }))
     }
 
     const article = await Article.create(articleData)
     await article.populate('author', 'email profile')
 
     // Emit real-time stats update
-    const io = require('../../config/socket.js').getIO()
+    const io = getIO()
     if (io) {
       io.to(`user:${article.author._id}`).emit('stats:updated', {
         articles: await Article.countDocuments({ author: article.author._id })
@@ -164,7 +171,7 @@ export const getArticleById = async (req, res) => {
 
     const article = await Article.findById(id)
       .populate('author', 'email profile')
-      .populate('coAuthors', 'email profile')
+      .populate('coAuthors.user', 'email profile')
       .populate('reviewedBy', 'email profile')
 
     if (!article) {
