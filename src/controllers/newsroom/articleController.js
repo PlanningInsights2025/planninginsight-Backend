@@ -75,18 +75,22 @@ export const createArticle = async (req, res) => {
     const article = await Article.create(articleData)
     await article.populate('author', 'email profile')
 
-    // Emit real-time stats update
-    const io = getIO()
-    if (io) {
-      io.to(`user:${article.author._id}`).emit('stats:updated', {
-        articles: await Article.countDocuments({ author: article.author._id })
-      })
-      io.to(`user:${article.author._id}`).emit('activity:new', {
-        type: 'article',
-        title: `Article "${article.title}" submitted for review`,
-        date: new Date().toISOString(),
-        status: 'pending'
-      })
+    // Emit real-time stats update (optional — not available on Vercel serverless)
+    try {
+      const io = getIO()
+      if (io) {
+        io.to(`user:${article.author._id}`).emit('stats:updated', {
+          articles: await Article.countDocuments({ author: article.author._id })
+        })
+        io.to(`user:${article.author._id}`).emit('activity:new', {
+          type: 'article',
+          title: `Article "${article.title}" submitted for review`,
+          date: new Date().toISOString(),
+          status: 'pending'
+        })
+      }
+    } catch (socketErr) {
+      // Socket.io not available in serverless environment — skip silently
     }
 
     console.log('=== ARTICLE CREATED SUCCESSFULLY ===')
