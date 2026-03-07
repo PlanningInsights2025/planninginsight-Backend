@@ -13,6 +13,7 @@ import Question from '../../models/Question.js'
 import RoleRequest from '../../models/RoleRequest.js'
 import { sendMail } from '../../config/email.js'
 import { sendEmail } from '../../services/email/emailService.js'
+import plagiarismService from '../../services/plagiarism/plagiarismService.js'
 import {
   getCombinedAnalytics,
   getOverviewWebsiteAnalytics,
@@ -666,6 +667,50 @@ export const deleteArticle = async (req, res) => {
   } catch (error) {
     console.error('Error deleting article:', error)
     res.status(500).json({ success: false, message: 'Failed to delete article' })
+  }
+}
+
+// ── ADMIN: Run plagiarism check on an article ──────────────────────────────
+export const checkArticlePlagiarism = async (req, res) => {
+  try {
+    const { articleId } = req.params
+
+    console.log('=== ADMIN PLAGIARISM CHECK ===', articleId)
+
+    const article = await Article.findById(articleId).select('title content plagiarismReport plagiarismScore')
+    if (!article) {
+      return res.status(404).json({ success: false, message: 'Article not found' })
+    }
+
+    // Run real similarity check (excludes the article itself from comparison)
+    const result = await plagiarismService.checkPlagiarism(article.content, article.title, articleId)
+    const report = plagiarismService.generateReport(result)
+
+    // Persist results back to the article
+    await Article.findByIdAndUpdate(articleId, {
+      plagiarismScore: report.score,
+      plagiarismReport: {
+        checked: true,
+        score: report.score,
+        wordCount: report.wordCount,
+        matchedSources: report.matchedSources.map(s => ({
+          url: s.url || '',
+          matchPercentage: s.matchPercentage || 0
+        })),
+        checkedAt: report.checkedAt
+      }
+    })
+
+    console.log('Plagiarism check complete. Score:', report.score, '% | Sources:', report.matchedSources.length)
+
+    res.json({
+      success: true,
+      message: 'Plagiarism check completed',
+      data: report
+    })
+  } catch (error) {
+    console.error('Admin plagiarism check error:', error)
+    res.status(500).json({ success: false, message: error.message || 'Plagiarism check failed' })
   }
 }
 

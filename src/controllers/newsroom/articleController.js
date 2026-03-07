@@ -1,6 +1,7 @@
 import Article from '../../models/Article.js'
 import User from '../../models/User.js'
 import { getIO, emitToArticle } from '../../config/socket.js'
+import plagiarismService from '../../services/plagiarism/plagiarismService.js'
 
 /**
  * Create new article
@@ -104,6 +105,34 @@ export const createArticle = async (req, res) => {
       message: 'Article submitted successfully! Awaiting admin approval.',
       data: { article }
     })
+
+    // Run plagiarism check in background (does NOT block the response)
+    if (status === 'pending') {
+      setImmediate(async () => {
+        try {
+          const result = await plagiarismService.checkPlagiarism(
+            article.content, article.title, article._id.toString()
+          )
+          const report = plagiarismService.generateReport(result)
+          await Article.findByIdAndUpdate(article._id, {
+            plagiarismScore: report.score,
+            plagiarismReport: {
+              checked: true,
+              score: report.score,
+              wordCount: report.wordCount,
+              matchedSources: report.matchedSources.map(s => ({
+                url: s.url || '',
+                matchPercentage: s.matchPercentage || 0
+              })),
+              checkedAt: report.checkedAt
+            }
+          })
+          console.log(`[Plagiarism] Article ${article._id}: ${report.score}% similarity (${report.matchedSources.length} sources)`)
+        } catch (plagErr) {
+          console.error('[Plagiarism] Background check failed:', plagErr.message)
+        }
+      })
+    }
   } catch (error) {
     console.error('Create article error:', error)
     res.status(500).json({
