@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import { OAuth2Client } from 'google-auth-library'
 import User from '../../models/User.js'
 import { sendMail } from '../../config/email.js'
 import { generateOTP } from '../../utils/otpGenerator.js'
@@ -757,29 +758,46 @@ export const resetPassword = async (req, res) => {
 }
 
 /**
- * Google Sign-In Handler (Firebase-free)
- * Accepts a Google OAuth access_token, verifies it via Google's userinfo
- * endpoint, then creates/updates the user and returns a JWT.
+ * Google Sign-In Handler
+ * Accepts either a Google id_token (credential) from the GoogleLogin button component,
+ * or a legacy access_token. Verifies and creates/updates the user.
  */
 export const googleLogin = async (req, res) => {
   try {
-    const { access_token } = req.body
+    const { credential, access_token } = req.body
 
-    if (!access_token) {
-      return res.status(400).json({ success: false, message: 'Google access_token is required' })
+    let googleId, email, given_name, family_name, picture
+
+    if (credential) {
+      // Primary flow: verify id_token via google-auth-library (no popup issues)
+      const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
+      const ticket = await client.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      })
+      const payload = ticket.getPayload()
+      googleId = payload.sub
+      email = payload.email
+      given_name = payload.given_name
+      family_name = payload.family_name
+      picture = payload.picture
+    } else if (access_token) {
+      // Legacy flow: verify access_token via userinfo endpoint
+      const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${access_token}` }
+      })
+      if (!googleRes.ok) {
+        return res.status(401).json({ success: false, message: 'Invalid Google token' })
+      }
+      const googleUser = await googleRes.json()
+      googleId = googleUser.sub
+      email = googleUser.email
+      given_name = googleUser.given_name
+      family_name = googleUser.family_name
+      picture = googleUser.picture
+    } else {
+      return res.status(400).json({ success: false, message: 'Google credential or access_token is required' })
     }
-
-    // Verify token by calling Google's userinfo endpoint
-    const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
-      headers: { Authorization: `Bearer ${access_token}` }
-    })
-
-    if (!googleRes.ok) {
-      return res.status(401).json({ success: false, message: 'Invalid Google token' })
-    }
-
-    const googleUser = await googleRes.json()
-    const { sub: googleId, email, given_name, family_name, picture } = googleUser
 
     if (!email) {
       return res.status(400).json({ success: false, message: 'Could not retrieve email from Google' })
