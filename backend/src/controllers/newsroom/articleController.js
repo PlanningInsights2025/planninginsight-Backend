@@ -1,6 +1,7 @@
 import Article from '../../models/Article.js'
 import User from '../../models/User.js'
-import { getIO } from '../../config/socket.js'
+import { getIO, emitToArticle } from '../../config/socket.js'
+import plagiarismService from '../../services/plagiarism/plagiarismService.js'
 
 /**
  * Create new article
@@ -75,18 +76,22 @@ export const createArticle = async (req, res) => {
     const article = await Article.create(articleData)
     await article.populate('author', 'email profile')
 
-    // Emit real-time stats update
-    const io = getIO()
-    if (io) {
-      io.to(`user:${article.author._id}`).emit('stats:updated', {
-        articles: await Article.countDocuments({ author: article.author._id })
-      })
-      io.to(`user:${article.author._id}`).emit('activity:new', {
-        type: 'article',
-        title: `Article "${article.title}" submitted for review`,
-        date: new Date().toISOString(),
-        status: 'pending'
-      })
+    // Emit real-time stats update (optional — not available on Vercel serverless)
+    try {
+      const io = getIO()
+      if (io) {
+        io.to(`user:${article.author._id}`).emit('stats:updated', {
+          articles: await Article.countDocuments({ author: article.author._id })
+        })
+        io.to(`user:${article.author._id}`).emit('activity:new', {
+          type: 'article',
+          title: `Article "${article.title}" submitted for review`,
+          date: new Date().toISOString(),
+          status: 'pending'
+        })
+      }
+    } catch (socketErr) {
+      // Socket.io not available in serverless environment — skip silently
     }
 
     console.log('=== ARTICLE CREATED SUCCESSFULLY ===')
@@ -94,6 +99,38 @@ export const createArticle = async (req, res) => {
     console.log('Status:', article.status)
     console.log('Approval Status:', article.approvalStatus)
     console.log('Author:', article.author._id)
+
+    // Run plagiarism check asynchronously (non-blocking)
+    if (status === 'pending' && article.content && article.content.length >= 50) {
+      // Use Promise without await so it runs in background
+      plagiarismService.checkPlagiarism(
+        article.content, 
+        article.title, 
+        article._id.toString()
+      )
+        .then(result => {
+          const report = plagiarismService.generateReport(result)
+          return Article.findByIdAndUpdate(article._id, {
+            plagiarismScore: report.score,
+            plagiarismReport: {
+              checked: true,
+              score: report.score,
+              wordCount: report.wordCount,
+              matchedSources: report.matchedSources.map(s => ({
+                url: s.url || '',
+                matchPercentage: s.matchPercentage || 0
+              })),
+              checkedAt: report.checkedAt
+            }
+          })
+        })
+        .then(() => {
+          console.log(`[Plagiarism] Article ${article._id} checked successfully`)
+        })
+        .catch(plagErr => {
+          console.error('[Plagiarism] Background check failed for article', article._id, ':', plagErr.message)
+        })
+    }
 
     res.status(201).json({
       success: true,
@@ -173,6 +210,8 @@ export const getArticleById = async (req, res) => {
       .populate('author', 'email profile')
       .populate('coAuthors.user', 'email profile')
       .populate('reviewedBy', 'email profile')
+      .populate('comments.user', 'email profile')
+      .populate('comments.replies.user', 'email profile')
 
     if (!article) {
       return res.status(404).json({
@@ -515,14 +554,19 @@ export const likeArticle = async (req, res) => {
     article.dislikesCount = article.dislikes.length
     await article.save()
 
+    const statsPayload = {
+      likesCount: article.likesCount,
+      dislikesCount: article.dislikesCount,
+      userLiked: article.likes.some(u => u.toString() === userId),
+      userDisliked: article.dislikes.some(u => u.toString() === userId)
+    }
+
+    // Broadcast real-time stats update to all viewers of this article
+    emitToArticle(id, 'article:stats', statsPayload)
+
     res.json({
       success: true,
-      data: {
-        likesCount: article.likesCount,
-        dislikesCount: article.dislikesCount,
-        userLiked: article.likes.some(u => u.toString() === userId),
-        userDisliked: article.dislikes.some(u => u.toString() === userId)
-      }
+      data: statsPayload
     })
   } catch (error) {
     console.error('Like article error:', error)
@@ -558,14 +602,19 @@ export const dislikeArticle = async (req, res) => {
     article.dislikesCount = article.dislikes.length
     await article.save()
 
+    const statsPayload = {
+      likesCount: article.likesCount,
+      dislikesCount: article.dislikesCount,
+      userLiked: article.likes.some(u => u.toString() === userId),
+      userDisliked: article.dislikes.some(u => u.toString() === userId)
+    }
+
+    // Broadcast real-time stats update to all viewers of this article
+    emitToArticle(id, 'article:stats', statsPayload)
+
     res.json({
       success: true,
-      data: {
-        likesCount: article.likesCount,
-        dislikesCount: article.dislikesCount,
-        userLiked: article.likes.some(u => u.toString() === userId),
-        userDisliked: article.dislikes.some(u => u.toString() === userId)
-      }
+      data: statsPayload
     })
   } catch (error) {
     console.error('Dislike article error:', error)
@@ -606,9 +655,14 @@ export const addComment = async (req, res) => {
     await article.save()
     await article.populate('comments.user', 'profile email')
 
+    const newComment = article.comments[article.comments.length - 1]
+
+    // Broadcast new comment to all viewers of this article
+    emitToArticle(id, 'article:comment_new', { comment: newComment })
+
     res.status(201).json({
       success: true,
-      data: { comment: article.comments[article.comments.length - 1] }
+      data: { comment: newComment }
     })
   } catch (error) {
     console.error('Add comment error:', error)
@@ -642,10 +696,90 @@ export const deleteComment = async (req, res) => {
     article.comments = article.comments.filter(c => c._id.toString() !== commentId)
     await article.save()
 
+    // Broadcast comment deletion to all viewers of this article
+    emitToArticle(id, 'article:comment_deleted', { commentId })
+
     res.json({ success: true, message: 'Comment deleted successfully' })
   } catch (error) {
     console.error('Delete comment error:', error)
     res.status(500).json({ success: false, message: 'Failed to delete comment' })
+  }
+}
+
+/**
+ * Add reply to a comment
+ */
+export const addReply = async (req, res) => {
+  try {
+    const { id, commentId } = req.params
+    const { content } = req.body
+    const userId = req.user.id || req.user.userId
+
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'Reply content is required' })
+    }
+
+    const article = await Article.findById(id)
+    if (!article) {
+      return res.status(404).json({ success: false, message: 'Article not found' })
+    }
+
+    const comment = article.comments.id(commentId)
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' })
+    }
+
+    const reply = { user: userId, content, createdAt: new Date() }
+    comment.replies.push(reply)
+    await article.save()
+    await article.populate('comments.replies.user', 'email profile')
+
+    const savedReply = comment.replies[comment.replies.length - 1]
+    emitToArticle(id, 'article:reply_new', { commentId, reply: savedReply })
+
+    res.status(201).json({ success: true, data: { reply: savedReply } })
+  } catch (error) {
+    console.error('Add reply error:', error)
+    res.status(500).json({ success: false, message: 'Failed to add reply' })
+  }
+}
+
+/**
+ * Delete a reply
+ */
+export const deleteReply = async (req, res) => {
+  try {
+    const { id, commentId, replyId } = req.params
+    const userId = req.user.id || req.user.userId
+
+    const article = await Article.findById(id)
+    if (!article) {
+      return res.status(404).json({ success: false, message: 'Article not found' })
+    }
+
+    const comment = article.comments.id(commentId)
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' })
+    }
+
+    const reply = comment.replies.id(replyId)
+    if (!reply) {
+      return res.status(404).json({ success: false, message: 'Reply not found' })
+    }
+
+    if (reply.user.toString() !== userId && article.author.toString() !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this reply' })
+    }
+
+    comment.replies = comment.replies.filter(r => r._id.toString() !== replyId)
+    await article.save()
+
+    emitToArticle(id, 'article:reply_deleted', { commentId, replyId })
+
+    res.json({ success: true, message: 'Reply deleted successfully' })
+  } catch (error) {
+    console.error('Delete reply error:', error)
+    res.status(500).json({ success: false, message: 'Failed to delete reply' })
   }
 }
 

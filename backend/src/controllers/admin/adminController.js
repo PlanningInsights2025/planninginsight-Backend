@@ -13,6 +13,7 @@ import Question from '../../models/Question.js'
 import RoleRequest from '../../models/RoleRequest.js'
 import { sendMail } from '../../config/email.js'
 import { sendEmail } from '../../services/email/emailService.js'
+import plagiarismService from '../../services/plagiarism/plagiarismService.js'
 import {
   getCombinedAnalytics,
   getOverviewWebsiteAnalytics,
@@ -666,6 +667,130 @@ export const deleteArticle = async (req, res) => {
   } catch (error) {
     console.error('Error deleting article:', error)
     res.status(500).json({ success: false, message: 'Failed to delete article' })
+  }
+}
+
+// ── ADMIN: Run plagiarism check on an article ──────────────────────────────
+export const checkArticlePlagiarism = async (req, res) => {
+  try {
+    const { articleId } = req.params
+
+    console.log('=== ADMIN PLAGIARISM CHECK ===', articleId)
+
+    const article = await Article.findById(articleId).select('title content plagiarismReport plagiarismScore')
+    if (!article) {
+      return res.status(404).json({ success: false, message: 'Article not found' })
+    }
+
+    // Run real similarity check (excludes the article itself from comparison)
+    const result = await plagiarismService.checkPlagiarism(article.content, article.title, articleId)
+    const report = plagiarismService.generateReport(result)
+
+    // Persist results back to the article
+    await Article.findByIdAndUpdate(articleId, {
+      plagiarismScore: report.score,
+      plagiarismReport: {
+        checked: true,
+        score: report.score,
+        wordCount: report.wordCount,
+        matchedSources: report.matchedSources.map(s => ({
+          url: s.url || '',
+          matchPercentage: s.matchPercentage || 0
+        })),
+        checkedAt: report.checkedAt
+      }
+    })
+
+    console.log('Plagiarism check complete. Score:', report.score, '% | Sources:', report.matchedSources.length)
+
+    res.json({
+      success: true,
+      message: 'Plagiarism check completed',
+      data: report
+    })
+  } catch (error) {
+    console.error('Admin plagiarism check error:', error)
+    res.status(500).json({ success: false, message: error.message || 'Plagiarism check failed' })
+  }
+}
+
+// ── ADMIN: Bulk plagiarism check for all unchecked articles ────────────────
+export const bulkCheckPlagiarism = async (req, res) => {
+  try {
+    console.log('=== BULK PLAGIARISM CHECK STARTED ===')
+
+    // Find all articles that haven't been checked or have old scores
+    const uncheckedArticles = await Article.find({
+      $or: [
+        { 'plagiarismReport.checked': { $ne: true } },
+        { plagiarismReport: { $exists: false } },
+        { plagiarismScore: { $exists: false } }
+      ]
+    }).select('_id title content')
+
+    console.log(`Found ${uncheckedArticles.length} articles to check`)
+
+    if (uncheckedArticles.length === 0) {
+      return res.json({
+        success: true,
+        message: 'All articles have been checked',
+        data: { checked: 0, total: 0 }
+      })
+    }
+
+    // Start async processing (don't wait for all to complete)
+    res.json({
+      success: true,
+      message: `Started plagiarism check for ${uncheckedArticles.length} articles`,
+      data: { checking: uncheckedArticles.length }
+    })
+
+    // Process articles in the background
+    let processed = 0
+    for (const article of uncheckedArticles) {
+      try {
+        if (!article.content || article.content.length < 50) {
+          console.log(`[Bulk Plagiarism] Skipping article ${article._id} - insufficient content`)
+          continue
+        }
+
+        const result = await plagiarismService.checkPlagiarism(
+          article.content, 
+          article.title, 
+          article._id.toString()
+        )
+        const report = plagiarismService.generateReport(result)
+
+        await Article.findByIdAndUpdate(article._id, {
+          plagiarismScore: report.score,
+          plagiarismReport: {
+            checked: true,
+            score: report.score,
+            wordCount: report.wordCount,
+            matchedSources: report.matchedSources.map(s => ({
+              url: s.url || '',
+              matchPercentage: s.matchPercentage || 0
+            })),
+            checkedAt: report.checkedAt
+          }
+        })
+
+        processed++
+        console.log(`[Bulk Plagiarism] ${processed}/${uncheckedArticles.length} - Article ${article._id}: ${report.score}%`)
+      } catch (err) {
+        console.error(`[Bulk Plagiarism] Failed for article ${article._id}:`, err.message)
+      }
+    }
+
+    console.log(`=== BULK PLAGIARISM CHECK COMPLETED: ${processed}/${uncheckedArticles.length} ===`)
+  } catch (error) {
+    console.error('Bulk plagiarism check error:', error)
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message || 'Bulk plagiarism check failed' 
+      })
+    }
   }
 }
 

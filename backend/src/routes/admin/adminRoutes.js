@@ -108,6 +108,8 @@ router.delete('/courses/:courseId', adminController.deleteCourse)
 router.get('/articles', adminController.getAllArticlesAdmin)
 router.patch('/articles/:articleId/status', adminController.updateArticleStatus)
 router.delete('/articles/:articleId', adminController.deleteArticle)
+router.post('/articles/:articleId/check-plagiarism', adminController.checkArticlePlagiarism)
+router.post('/articles/bulk-check-plagiarism', adminController.bulkCheckPlagiarism)
 
 // ==================== FORUM MANAGEMENT ====================
 router.get('/threads', adminController.getAllThreadsAdmin)
