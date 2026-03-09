@@ -7,16 +7,34 @@ import { dirname } from 'path'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../../uploads/manuscripts')
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true })
+// Helper to safely create directory
+const ensureDir = (dirPath) => {
+  try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true })
+    }
+  } catch (error) {
+    console.warn(`Cannot create directory ${dirPath}:`, error.message)
+    // On serverless (Vercel), filesystem is read-only, so use /tmp
+    return false
+  }
+  return true
 }
 
-// Configure storage
+// Configure storage - use /tmp for serverless environments
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadsDir)
+    // Try local uploads directory first, fallback to /tmp for serverless
+    const uploadsDir = path.join(__dirname, '../../uploads/manuscripts')
+    
+    if (ensureDir(uploadsDir)) {
+      cb(null, uploadsDir)
+    } else {
+      // Fallback to /tmp for serverless environments like Vercel
+      const tmpDir = '/tmp/uploads/manuscripts'
+      ensureDir(tmpDir)
+      cb(null, tmpDir)
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
@@ -50,10 +68,15 @@ export const uploadManuscript = multer({
 const imageStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const articlesDir = path.join(__dirname, '../../uploads/articles')
-    if (!fs.existsSync(articlesDir)) {
-      fs.mkdirSync(articlesDir, { recursive: true })
+    
+    if (ensureDir(articlesDir)) {
+      cb(null, articlesDir)
+    } else {
+      // Fallback to /tmp for serverless environments
+      const tmpDir = '/tmp/uploads/articles'
+      ensureDir(tmpDir)
+      cb(null, tmpDir)
     }
-    cb(null, articlesDir)
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)

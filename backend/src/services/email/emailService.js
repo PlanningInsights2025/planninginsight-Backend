@@ -3,34 +3,43 @@
  * Handles sending emails using nodemailer
  */
 
-import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 // Create transporter
 let transporter = null;
+let nodemailer = null;
 
-// Only create transporter if credentials are provided
-if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-  try {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT) || 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
+// Try to load nodemailer safely
+try {
+  const imported = await import('nodemailer');
+  nodemailer = imported.default || imported;
+  
+  // Only create transporter if credentials are provided
+  if (typeof nodemailer.createTransport === 'function' && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT) || 587,
+        secure: false, // true for 465, false for other ports
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
 
-    console.log('✓ Email transporter configured successfully');
-  } catch (error) {
-    console.warn('⚠ Email transporter configuration failed:', error.message);
-    transporter = null;
+      console.log('✓ Email transporter configured successfully');
+    } catch (error) {
+      console.warn('⚠ Email transporter configuration failed:', error.message);
+      transporter = null;
+    }
+  } else {
+    console.log('⚠ Email service not configured (SMTP credentials missing). Emails will be logged only.');
   }
-} else {
-  console.log('⚠ Email service not configured (SMTP credentials missing). Emails will be logged only.');
+} catch (importError) {
+  console.warn('⚠ Email transporter configuration failed: nodemailer not available or createTransport is not a function');
+  console.warn('Import error:', importError.message);
 }
 
 /**
