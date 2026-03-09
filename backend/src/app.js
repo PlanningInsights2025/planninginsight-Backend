@@ -63,4 +63,18 @@ app.use('/api/chief-editor', chiefEditorRoutes) // chief editor routes for assig
 app.use('/api/user', roleRequestRoutes) // user role request routes
 app.use('/api/user', userStatsRoutes) // user stats routes
 
+// Global error handler - ensure CORS headers are always set
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err)
+  
+  // Ensure CORS headers are set even on errors
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({
+      success: false,
+      message: err.message || 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    })
+  }
+})
+
 export default app

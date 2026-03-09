@@ -72,8 +72,17 @@ router.post('/login', async (req, res) => {
       }
     })
   } catch (error) {
-    console.error('Admin login error:', error)
-    res.status(500).json({ success: false, message: 'Login failed' })
+    console.error('❌ Admin login error:', error)
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    })
+    res.status(500).json({ 
+      success: false, 
+      message: 'Login failed: ' + error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Server error'
+    })
   }
 })
 
