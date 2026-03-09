@@ -1,0 +1,5 @@
+frontend/
+*.md
+.git/
+.github/
+prepare-deployment.sh
